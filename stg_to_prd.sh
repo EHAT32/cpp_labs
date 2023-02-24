@@ -1,6 +1,6 @@
 VAR=$(date '+%d.%m.%Y.%H.%M.%S') #date in given format
 git checkout prd #switch to prd
-git merge stg #merge with stg
+git merge stg #merge stg into prd
 git tag "$VAR" #tag the date
 git push origin prd
 git push origin "$VAR"
