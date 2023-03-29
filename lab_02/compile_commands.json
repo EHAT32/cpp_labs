@@ -1,0 +1,7 @@
+[
+{
+  "directory": "D:/cpp/cpp_labs/lab_02/.build/debug",
+  "command": "C:\\PROGRA~2\\MICROS~2\\2022\\BUILDT~1\\VC\\Tools\\Llvm\\x64\\bin\\clang-cl.exe  /nologo -TP -ID:\\cpp\\cpp_labs\\lab_02\\include /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 /FoCMakeFiles\\main.dir\\src\\main.cpp.obj /FdTARGET_COMPILE_PDB -c -- D:\\cpp\\cpp_labs\\lab_02\\src\\main.cpp",
+  "file": "D:\\cpp\\cpp_labs\\lab_02\\src\\main.cpp"
+}
+]
