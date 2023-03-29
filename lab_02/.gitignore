@@ -1,8 +1,0 @@
-build
-build/**
-.cache
-.cache/**
-.vscode
-.vscode/**
-.build
-.build/**
