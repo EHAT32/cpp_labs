@@ -1,4 +1,5 @@
 #include "iostream"
+#include <array>
 #include <cmath>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,6 +19,8 @@ float time_reg(const float& x, const int& N){
 }
 
 int main(){
+    array<float, 10> data;
+    int i = 0;
     string ans = "y";
     while (ans == "y"){
         float x = (float) rand() / RAND_MAX;
@@ -29,9 +32,10 @@ int main(){
             std::cout << "This is cannot be interpreted as integer." << endl;
             break;
         }
-        time_reg(x, N);
-        cout << "Continue? [y/n]: ";
-        cin >> ans;
+        data[i] = time_reg(x, N);
+        i++;
+        // cout << "Continue? [y/n]: ";
+        // cin >> ans;
     }
     cout << "Goodbye.\n";
     return 0;
