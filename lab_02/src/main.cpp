@@ -32,8 +32,7 @@ int main(){
             std::cout << "This is cannot be interpreted as integer." << endl;
             break;
         }
-        // data[i] = time_reg(x, N);
-        // i++;
+        time_reg(x, N);
         cout << "Continue? [y/n]: ";
         cin >> ans;
     }
