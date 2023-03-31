@@ -34,8 +34,8 @@ int main(){
         }
         // data[i] = time_reg(x, N);
         // i++;
-        // cout << "Continue? [y/n]: ";
-        // cin >> ans;
+        cout << "Continue? [y/n]: ";
+        cin >> ans;
     }
     cout << "Goodbye.\n";
     return 0;
