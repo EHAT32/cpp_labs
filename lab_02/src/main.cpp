@@ -1,8 +1,7 @@
-#include "iostream"
+#include "iostream" // for cout, cin
 #include <array>
 #include <cmath>
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdlib.h> // for rand
 #include <time.h> 
 
 using namespace std;
