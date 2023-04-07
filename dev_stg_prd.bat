@@ -1,8 +1,9 @@
+git switch dev
 git switch stg
-git merge dev -m "stg and dev" 
+git merge --commit dev 
 git push
 git switch prd
-git merge stg -m "prd and stg" 
+git merge --commit stg 
 git push
 git switch dev
 @pause
