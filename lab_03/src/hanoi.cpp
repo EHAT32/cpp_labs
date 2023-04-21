@@ -38,7 +38,7 @@ void show_list(std::list<T> l) {
 
 int main(){
     std::list<std::string> moves;
-    int n = 3;
+    int n = 8;
     move_disk(n, 'A', 'C', 'B', moves);
     show_list(moves);
     moves.clear();
