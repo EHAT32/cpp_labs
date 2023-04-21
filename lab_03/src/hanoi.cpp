@@ -40,6 +40,7 @@ int main(){
     std::list<std::string> moves;
     int n = 8;
     move_disk(n, 'A', 'C', 'B', moves);
+    std::cout << moves.size() << " moves:" << std::endl;
     show_list(moves);
     moves.clear();
     return 0;
