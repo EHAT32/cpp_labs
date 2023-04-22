@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.0.0)
 project(lab_04)
 
 set(SOURCE_FILES 
-    src/seq_thr_proc.cpp
+    src/seq.cpp
 )
-add_executable(seq_thr_proc src/seq_thr_proc.cpp)
-target_include_directories(seq_thr_proc PRIVATE include)
+add_executable(seq src/seq.cpp)
+target_include_directories(seq PRIVATE include)
