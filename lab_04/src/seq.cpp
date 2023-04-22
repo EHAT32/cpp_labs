@@ -26,8 +26,6 @@ float time_reg(const float& x, const int& N){
     return time;
 }
 
-
-
 int main(){
     std::string ans = "y";
     while (ans == "y"){

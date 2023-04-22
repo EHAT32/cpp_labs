@@ -4,6 +4,9 @@ project(lab_04)
 
 set(SOURCE_FILES 
     src/seq.cpp
+    src/thr.cpp
 )
 add_executable(seq src/seq.cpp)
+add_executable(thr src/thr.cpp)
 target_include_directories(seq PRIVATE include)
+target_include_directories(thr PRIVATE include)
