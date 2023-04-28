@@ -22,27 +22,16 @@ float time_reg(const float& x, const int& N){
     }
     clock_t end = clock();
     double time = (double)(end - start) / CLOCKS_PER_SEC;
-    printf("The elapsed time is %.10e seconds\n", time);
+    printf("For N = %i the elapsed time is %.2e seconds\n", N, time);
     return time;
 }
 
 int main(){
-    std::string ans = "y";
-    while (ans == "y"){
-        float x = (float) rand() / RAND_MAX;
-        int N;
-        std::cout << "Type in the number (as number) of loops: ";
-        std::cin >> N;
-        if(!std::cin.good())
-        {
-            std::cout << "This is cannot be interpreted as integer." << std::endl;
-            break;
-        }
-        time_reg(x, N);
-        std::cout << "Continue? [y/n]: ";
-        std::cin >> ans;
-    }
-    std::cout << "Goodbye.\n";
+    
+    float x = (float) rand() / RAND_MAX;
+
+    time_reg(x, 10000);
+    time_reg(x, 100000);
 
     return 0;
 }
