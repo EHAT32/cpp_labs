@@ -32,9 +32,8 @@ thread th1([&calc_1, &x, &n, &m]()
 {   
     for(int i = 0; i<n; i++)
     {
-        float y = pow(x, 2) - pow(x, 2) + pow(x, 4) - pow(x, 5) + x + x;
         m.lock();
-        calc_1[i] = y;
+        calc_1[i] = formula_1(x);
         m.unlock();
     }
 });
@@ -43,9 +42,8 @@ thread th([&calc_2, &x, &n, &m]()
 {   
     for(int i = 0; i < n; i++)
     {
-        float y = x + x;
         m.lock();
-        calc_2[i] = y;
+        calc_2[i] =  formula_2(x);
         m.unlock();
     }
 });
