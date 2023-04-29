@@ -61,13 +61,16 @@ int main(){
 ### Решение
 
 ```
-#include "iostream" // for cout, cin
-#include <array>
-#include <cmath>
-#include <stdlib.h> // for rand
-#include <time.h> 
+ #include <iostream> //standart
+#include <cmath> //for pow()
+#include <time.h>
+#include <stdlib.h> // random number from _start to _end
 #include <thread>
+#include <chrono>
 #include <mutex>
+#include <queue>
+
+using namespace std;
 
 float formula_1(const float& x){
     return std::pow(x, 2) - std::pow(x, 2) + x * 4 - x * 5 + x + x;
@@ -77,39 +80,49 @@ float formula_2(const float& x){
     return x + x;
 }
 
-float formula_3(const float& x){
-    return formula_1(x) + formula_2(x) - formula_1(x);
-}
 
-float time_reg(const float& x, const int& N){
-    clock_t start = clock();
-    for(int i = 0; i < N; i++){
-        float calc_1;
-        float calc_2;
-        std::thread th1([&calc_1, &x]()
-        {
-            calc_1 = formula_1(x);
-        });
-        std::thread th2([&calc_2, &x]()
-        {
-            calc_2 = formula_2(x);
-        });
-        th1.join();
-        th2.join();
-        [[maybe_unused]] float calc_3 = calc_1 + calc_2 - calc_1; 
+int main()
+{
+float x = 1;
+int n = 100000;
+float calc_1[n];
+float calc_2[n];
+std::mutex m;
+clock_t start = clock();
+
+
+thread th1([&calc_1, &x, &n, &m]()
+{   
+    for(int i = 0; i<n; i++)
+    {
+        m.lock();
+        calc_1[i] = formula_1(x);
+        m.unlock();
     }
-    clock_t end = clock();
-    double time = (double)(end - start) / CLOCKS_PER_SEC;
-    printf("For N = %i the elapsed time is %.2e seconds\n", N, time);
-    return time;
+});
+
+thread th([&calc_2, &x, &n, &m]()
+{   
+    for(int i = 0; i < n; i++)
+    {
+        m.lock();
+        calc_2[i] =  formula_2(x);
+        m.unlock();
+    }
+});
+
+ [[maybe_unused]] float calc_3; 
+
+for(int i = 0; i<n; i++)
+{
+    calc_3 = calc_1[i] + calc_2[i] - calc_1[i];
 }
-
-int main(){
-    float x = (float) rand() / RAND_MAX;
-
-    time_reg(x, 10000);
-    time_reg(x, 100000);
-    return 0;
+th1.join();
+th.join();
+clock_t end = clock(); // time of end in flops
+double seconds = (double)(end - start) / CLOCKS_PER_SEC;
+printf("For N = %i the elapsed time is %.2e seconds\n", n, seconds);
+return 0;
 }
 ```
 
