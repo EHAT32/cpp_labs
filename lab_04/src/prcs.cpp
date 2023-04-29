@@ -80,7 +80,7 @@ int main() {
 
     clock_t end = clock();
     double seconds = (double)(end - start) / CLOCKS_PER_SEC;
-    std:: cout << "for n="<<n<< " with processes time is: " << seconds << " s." << std::endl;
+   printf("For N = %i the elapsed time is %.2e seconds\n", n, seconds);
 
     return 0;
 }
