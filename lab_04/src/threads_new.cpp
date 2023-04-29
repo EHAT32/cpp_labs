@@ -20,8 +20,8 @@ float formula_2(const float& x){
 
 int main()
 {
-float x = 1;
-int n = 100000;
+float x = 1.337;
+int n = 10000;
 float calc_1[n];
 float calc_2[n];
 std::mutex m;
