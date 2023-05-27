@@ -4,11 +4,15 @@
 // The grammar accepts expressions like "y = 1 + 2 * x", constructs an AST and
 // evaluates it correctly. Non-assignment expression are also evaluated.
 
+#include "boost/filesystem/operations.hpp"
 #include <iomanip>
 #include <iostream>
 #include <map>
 #include <memory>
 #include <stdexcept>
+#include <string>
+#include <fstream>
+#include <boost/filesystem.hpp>
 
 #define BOOST_SPIRIT_DEBUG
 #include <boost/phoenix.hpp>
@@ -16,6 +20,7 @@
 
 namespace qi = boost::spirit::qi;
 namespace phx = boost::phoenix;
+namespace fs = boost::filesystem;
 
 /******************************************************************************/
 
@@ -225,8 +230,11 @@ class ASTVisitorImpl : public IASTVisitor
 {
 public:
     ASTVisitorImpl() {
-        _stream << "from multiprocessing import Pool" << std::endl 
-                << std::endl << std::string(40, '#') << std::endl << std::endl;
+        // _stream << "from multiprocessing import Pool" << std::endl 
+        _stream << "import threading" << std::endl 
+                << std::endl << std::string(40, '#') << std::endl << std::endl
+                << "threads = []" << std::endl << std::endl;
+        _stream << "if __name__ == '__main__':" << std::endl;
     }
 
     virtual void visit(const BinaryOpNode& ref) override {
@@ -277,7 +285,7 @@ public:
 
     virtual void visit(const BodyNode& ref) override {
         ++_level;
-        const size_t indents = (_level - 1) * 4;
+        const size_t indents = (_level) * 4;
         if (ref.expressions().empty()) {
             _stream << std::string(indents, ' ') << "pass";
         }
@@ -305,12 +313,21 @@ public:
 
     virtual void visit(const CommandNode& ref) override {
         if (ref.command() == "run!") {
-            _stream << "make_new_thread(lambda:";
+            // _stream << "make_new_thread(lambda:";
+            _stream << "threads.append(threading.Thread(target = print(";
             ref.expr()->accept(*this);
-            _stream << ")";
+            _stream << ")))";
+            _stream << std::endl << std::string((_level) * 4, ' ') << "threads[-1].start()";
         }
         if (ref.command() == "wait!") {
-            _stream << "wait_all_threads()";
+            // _stream << "wait_all_threads()";
+            // _stream << "for thread in threads:" << std::endl;
+            // _stream << std::string((_level + 1) * 4, ' ');
+            // _stream << "thread.start()" << std::endl;
+            
+            _stream << "for thread in threads:" << std::endl;
+            _stream << std::string((_level + 1) * 4, ' ');
+            _stream << "thread.join()" << std::endl;
         }
         if (ref.command() == "not!") {
             _stream << "not";
@@ -448,22 +465,57 @@ struct SLATTGrammar
 
 /******************************************************************************/
 
-int main()
+int main(int argc, char **argv)
 {
-    std::string code = 
-        "{                                        \n"
-        "    stopCommand = read!                  \n"
-        "    while (not! (stopCommand is \"q\")) {\n"
-        "        write! \"enter a command:\"      \n"
-        "        a = read! as int                 \n"
-        "        op = read!                       \n"
-        "        b = read! as int                 \n"
-        "        run! b + c                       \n"
-        "        stopCommand = read!              \n"
-        "    }                                    \n"
-        "    wait!                                \n"
-        "}"
-        ;
+    char const* filename_in;
+    char const* filename_out;
+    if (argc > 2) {
+        filename_in = argv[1];
+        filename_out = argv[2];
+    } else {
+        std::cerr << "Error: usage: " << argv[0] << "[filename_in] [filename_out]" << std::endl;
+        return 1;
+    }
+
+    std::ifstream in(filename_in, std::ios_base::in);
+
+    if (!in) {
+        std::cerr << "Error: Could not open input file: "
+            << filename_in << std::endl;
+        return 1;
+    }
+
+    std::string code; // We will read the contents here.
+    in.unsetf(std::ios::skipws); // No white space skipping!
+    std::copy(
+        std::istream_iterator<char>(in),
+        std::istream_iterator<char>(),
+        std::back_inserter(code));
+    // std::string code = 
+    //     "{                                        \n"
+    //     "    stopCommand = read!                  \n"
+    //     "    while (not! (stopCommand is \"q\")) {\n"
+    //     "        write! \"enter a command:\"      \n"
+    //     "        a = read! as int                 \n"
+    //     "        op = read!                       \n"
+    //     "        b = read! as int                 \n"
+    //     "        if (op is \"+\") {               \n"
+    //     "            run! a + b                   \n"
+    //     "        }                                \n"
+    //     "        if (op is \"*\") {               \n"
+    //     "            run! a * b                   \n"
+    //     "        }                                \n"
+    //     "        if (op is \"/\") {               \n"
+    //     "            run! a / b                   \n"
+    //     "        }                                \n"
+    //     "        if (op is \"-\") {               \n"
+    //     "            run! a - b                   \n"
+    //     "        }                                \n"
+    //     "        stopCommand = read!              \n"
+    //     "    }                                    \n"
+    //     "    wait!                                \n"
+    //     "}"
+    //     ;
     // code = "a = 10 + 1";
     std::cout << "code: " << std::endl << code << std::endl;
     
@@ -484,6 +536,13 @@ int main()
         std::cout << "-------------------------\n";
         std::cout << "compiled: " << std::endl;
         std::cout << visitor.getCompiledCode() << std::endl;
+
+        auto out_dir = fs::path(filename_out).parent_path();
+        if (!fs::exists(out_dir)) {
+            fs::create_directories(out_dir);
+        }
+        std::ofstream out_file(filename_out);
+        out_file << visitor.getCompiledCode() << std::endl;
         return 0;
     }
     else
