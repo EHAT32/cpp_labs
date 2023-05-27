@@ -1,393 +1,499 @@
-#include "boost/phoenix/function/adapt_function.hpp"
-#include "boost/phoenix/stl/algorithm/transformation.hpp"
-#include "boost/spirit/home/support/common_terminals.hpp"
-#include <algorithm>
+// Example how to use Boost Spirit to construct an abstract syntax tree (AST)
+// for a simple arithmetic grammar and to evaluate expressions _with_ variables!
+//
+// The grammar accepts expressions like "y = 1 + 2 * x", constructs an AST and
+// evaluates it correctly. Non-assignment expression are also evaluated.
+
+#include <iomanip>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <stdexcept>
-#include <string>
-#include <utility>
-#include <vector>
-#include <variant>
 
+#define BOOST_SPIRIT_DEBUG
 #include <boost/phoenix.hpp>
 #include <boost/spirit/include/qi.hpp>
-#include <boost/fusion/include/adapt_struct.hpp>
-#include <boost/variant/recursive_variant.hpp>
-#include <boost/foreach.hpp>
-#include <boost/phoenix/stl.hpp>
 
-
-using namespace std;
-
-namespace fusion = boost::fusion;
-namespace phx = boost::phoenix;
 namespace qi = boost::spirit::qi;
-namespace ascii = boost::spirit::ascii;
+namespace phx = boost::phoenix;
 
-class ExprAST{
-    public:
-        virtual ~ExprAST(){}
-        virtual std::string gen() = 0;
-};
+/******************************************************************************/
 
-class ModuleExprAST : public ExprAST{
-    public:
-        std::vector<std::unique_ptr<ExprAST>> module;
-        ModuleExprAST(std::vector<std::unique_ptr<ExprAST>> module) : module(std::move(module)){}
-        std::string gen() override{
-            throw std::runtime_error("Not Implemented");
-        }
-
-};
-
-class NumberExprAST : public ExprAST{
-    public:
-        double val;
-        NumberExprAST(double val) : val(val){}
-        std::string gen() override{
-            throw std::runtime_error("Not Implemented");
-        }
-};
-
-class VariableExprAST : public ExprAST{
-    public:
-        std::string name;
-        VariableExprAST(const std::string& name) : 
-            name(name){}
-
-        std::string gen() override{
-            throw std::runtime_error("Not Implemented");
-        }
-};
-
-class BinaryExprAST : public ExprAST{
-    public:
-        char op;
-        std::unique_ptr<ExprAST> lhs, rhs;
-        BinaryExprAST(char op, std::unique_ptr<ExprAST> lhs, std::unique_ptr<ExprAST> rhs) : 
-            op(op), lhs(std::move(lhs)), rhs(std::move(rhs)) {}
-        std::string gen() override{
-            throw std::runtime_error("Not Implemented");
-        }
-};
-
-//call function
-
-// class CallExprAST : public ExprAST{
-//     public:
-//         std::string Callee;
-//         std::vector<std::unique_ptr<ExprAST>> Args;
-//         CallExprAST(const std::string& callee, std::vector<std::unique_ptr<ExprAST>>& args) : Callee(callee), Args(args) {}
-//         std::string gen() override{
-//             throw std::runtime_error("Not Implemented");
-//         }
-// };
-
-//function prototype and function itself
-
-class ForPrototypeExprAST : public ExprAST {
-    public:
-        std::string from;
-        std::string to;
-        std::string step;
-        ForPrototypeExprAST(const std::string& from, const std::string& to, const std::string& step) : 
-            from(from), to(to), step(step) {}
-        std::string gen() override{
-            throw std::runtime_error("Not Implemented");
-        }
-};
-
-class BodyExprAST : public ExprAST{
-    public:
-        std::vector<std::unique_ptr<ExprAST>> expressions;
-        BodyExprAST() = default;
-        std::string gen() override{
-            throw std::runtime_error("Not Implemented");
-        }
-};
-
-class ForLoopExprAST : public ExprAST {
-    public:
-        std::unique_ptr<ExprAST> prototype;
-        std::unique_ptr<ExprAST> body;
-    
-    ForLoopExprAST(std::unique_ptr<ForPrototypeExprAST> proto, std::unique_ptr<BodyExprAST> body) : prototype(std::move(prototype)), body(std::move(body)) {}
-
-    std::string gen() override {
-        throw std::runtime_error("Not Implemented");
-    }
-};
-
-namespace {
-
-#define ADD_STD_SMART_PTR_WRAPPER(name) \
-template <typename T> \
-struct make_##name##_f \
-{ \
-    template <typename... A> struct result  \
-        { typedef std::name##_ptr<T> type; }; \
-    template <typename... A> \
-    typename result<A...>::type operator()(A&&... a) const { \
-        return std::make_##name<T>(std::forward<A>(a)...); \
-    } \
-}; \
-template <typename T> \
-using make_##name##_ = boost::phoenix::function<make_##name##_f<T>>;
-
-ADD_STD_SMART_PTR_WRAPPER(shared)
-ADD_STD_SMART_PTR_WRAPPER(unique)
-
-template<typename T>
-struct move_f
+// Utility to run a parser, check for errors, and capture the results.
+template <typename Parser, typename Skipper, typename ... Args>
+void PhraseParse(
+    const std::string& input, const Parser& p, const Skipper& s,
+    Args&& ... args)
 {
-    typedef T result_type;
-    
-    template <typename A>
-    result_type operator()(A arg1) const {
-        return std::move(arg1);
+    std::string::const_iterator begin = input.begin(), end = input.end();
+    boost::spirit::qi::phrase_parse(
+        begin, end, p, s, std::forward<Args>(args) ...);
+    if (begin != end) {
+        std::cout << "Unparseable: "
+                  << std::quoted(std::string(begin, end)) << std::endl;
     }
+}
+
+/******************************************************************************/
+
+class BinaryOpNode;
+template<typename T> class ConstantNode;
+class VariableNode;
+class AssignmentNode;
+class BodyNode;
+class WhileNode;
+class IfNode;
+class CommandNode;
+
+class IASTVisitor {
+public:
+    virtual void visit(const ConstantNode<std::string>& ref) = 0;
+    virtual void visit(const ConstantNode<double>& ref) = 0;
+    virtual void visit(const BinaryOpNode& ref) = 0;
+    virtual void visit(const VariableNode& ref) = 0;
+    virtual void visit(const AssignmentNode& ref) = 0;
+    virtual void visit(const WhileNode& ref) = 0;
+    virtual void visit(const BodyNode& ref) = 0;
+    virtual void visit(const IfNode& ref) = 0;
+    virtual void visit(const CommandNode& ref) = 0;
+
+    virtual std::string getCompiledCode() const = 0;
+
+    virtual ~IASTVisitor() = default;
+};
+
+class ASTNode
+{
+public:
+    virtual void accept(IASTVisitor&) = 0;
+    virtual ~ASTNode() { }
+};
+
+using ASTNodePtr = ASTNode*;
+
+class BinaryOpNode : public ASTNode
+{
+public:
+    BinaryOpNode(const ASTNodePtr& left, const ASTNodePtr& right, const std::string& op)
+        : _left(left), _right(right), _op(op) { }
+
+    ASTNodePtr left() const {
+        return _left;
+    }
+
+    ASTNodePtr right() const {
+        return _right;
+    }
+
+    const std::string& op() const {
+        return _op;
+    }
+
+    void accept(IASTVisitor& v) override { v.visit(*this); }
+
+    ~BinaryOpNode() {
+        delete _left;
+        delete _right;
+    }
+
+private:
+    ASTNodePtr _left, _right; std::string _op;
 };
 
 template<typename T>
-using move_ = boost::phoenix::function<move_f<T>>;
+class ConstantNode : public ASTNode
+{
+public:
+    ConstantNode(T value)
+        : _value(value) { }
 
-}
+    T value() const {
+        return _value;
+    }
+
+    void accept(IASTVisitor& v) override { v.visit(*this); }
+
+private:
+    T _value;
+};
+
+class VariableNode : public ASTNode
+{
+public:
+    VariableNode(std::string identifier)
+        : _identifier(identifier) { }
+
+    std::string identifier() const { return _identifier; }
+
+    void accept(IASTVisitor& v) { v.visit(*this); }
+
+private:
+    std::string _identifier;
+};
+
+class AssignmentNode : public ASTNode
+{
+public:
+    AssignmentNode(const ASTNodePtr& var, const ASTNodePtr& value)
+        : _var(var), _value(value) { }
+
+    ASTNodePtr var() const {
+        return _var;
+    }
+
+    ASTNodePtr value() const {
+        return _value;
+    }
+
+    void accept(IASTVisitor& v) override { v.visit(*this); }
+
+private:
+    ASTNodePtr _var;
+    ASTNodePtr _value;
+};
+
+class BodyNode : public ASTNode 
+{
+public:
+    BodyNode(const std::vector<ASTNodePtr>& expressions) : _expressions(expressions) {}
+
+    const std::vector<ASTNodePtr>& expressions() const {
+        return _expressions;
+    }
+
+    void accept(IASTVisitor& v) override { v.visit(*this); }
+
+private:
+    std::vector<ASTNodePtr> _expressions;
+};
+
+class WhileNode : public ASTNode 
+{
+public:
+    WhileNode(ASTNodePtr expr, ASTNodePtr body) : _expr(expr), _body(body) {}
+
+    ASTNodePtr expr() const {
+        return _expr;
+    }
+    ASTNodePtr body() const {
+        return _body;
+    }
+
+    void accept(IASTVisitor& v) override { v.visit(*this); }
+
+private:
+    ASTNodePtr _expr;
+    ASTNodePtr _body;
+};
+
+class IfNode : public ASTNode 
+{
+public:
+    IfNode(ASTNodePtr expr, ASTNodePtr body) : _expr(expr), _body(body) {}
+
+    ASTNodePtr expr() const {
+        return _expr;
+    }
+    ASTNodePtr body() const {
+        return _body;
+    }
+
+    void accept(IASTVisitor& v) override { v.visit(*this); }
+
+private:
+    ASTNodePtr _expr;
+    ASTNodePtr _body;
+};
+
+class CommandNode : public ASTNode 
+{
+public:
+    CommandNode(const std::string& command, ASTNodePtr expr) : _command(command), _expr(expr) {}
+
+    void accept(IASTVisitor& v) override { v.visit(*this); }
+
+    std::string command() const { return _command; }
+    ASTNodePtr expr() const { return _expr; }
+
+private:
+    std::string _command;
+    ASTNodePtr _expr;
+};
+
+/******************************************************************************/
+class ASTVisitorImpl : public IASTVisitor
+{
+public:
+    ASTVisitorImpl() {
+        _stream << "from multiprocessing import Pool" << std::endl 
+                << std::endl << std::string(40, '#') << std::endl << std::endl;
+    }
+
+    virtual void visit(const BinaryOpNode& ref) override {
+        enum Ops { As, Is, Plus, Minus, Mul, Div, };
+        static std::map<std::string, Ops> str2op = { { "as", As }, { "is", Is }, { "+", Plus }, { "-", Minus }, { "*", Mul }, { "/", Div } };
+        
+        switch (str2op[ref.op()]) {
+            case As:
+                ref.right()->accept(*this); _stream << "("; ref.left()->accept(*this); _stream << ")";
+                return;
+            case Is:
+                _stream << "("; 
+                ref.left()->accept(*this); 
+                _stream << "=="; 
+                ref.right()->accept(*this);
+                _stream << ")"; 
+                break;
+            case Plus:
+            case Minus:
+            case Mul:
+            case Div:
+            default:
+                _stream << "("; 
+                ref.left()->accept(*this); 
+                _stream << " " << ref.op() << " "; 
+                ref.right()->accept(*this);
+                _stream << ")";
+        }
+    }
+
+    virtual void visit(const ConstantNode<double>& ref) override {
+        _stream << ref.value();
+    }
+
+    virtual void visit(const ConstantNode<std::string>& ref) override {
+        _stream << "'" <<  ref.value() << "'";
+    }
+
+    virtual void visit(const VariableNode& ref) override {
+        _stream << ref.identifier();
+    }
+
+    virtual void visit(const AssignmentNode& ref) override {
+        ref.var()->accept(*this);
+        _stream << '=';
+        ref.value()->accept(*this);
+    }
+
+    virtual void visit(const BodyNode& ref) override {
+        ++_level;
+        const size_t indents = (_level - 1) * 4;
+        if (ref.expressions().empty()) {
+            _stream << std::string(indents, ' ') << "pass";
+        }
+        for (const auto& n : ref.expressions()) {
+            _stream << std::string(indents, ' ');
+            n->accept(*this);
+            _stream << std::endl;
+        }
+        --_level;
+    }
+
+    virtual void visit(const WhileNode& ref) override {
+        _stream << "while ";
+        ref.expr()->accept(*this); 
+        _stream << ":" << std::endl;
+        ref.body()->accept(*this);
+    }
+
+    virtual void visit(const IfNode& ref) override {
+        _stream << "if ";
+        ref.expr()->accept(*this);
+        _stream << ":" << std::endl;
+        ref.body()->accept(*this);
+    }
+
+    virtual void visit(const CommandNode& ref) override {
+        if (ref.command() == "run!") {
+            _stream << "make_new_thread(lambda:";
+            ref.expr()->accept(*this);
+            _stream << ")";
+        }
+        if (ref.command() == "wait!") {
+            _stream << "wait_all_threads()";
+        }
+        if (ref.command() == "not!") {
+            _stream << "not";
+            ref.expr()->accept(*this);
+        }
+        if (ref.command() == "read!") {
+            _stream << "input()";
+        }
+        if (ref.command() == "write!") {
+            _stream << "print(";
+            ref.expr()->accept(*this);
+            _stream << ")";
+        }
+    }
+
+    std::string getCompiledCode() const override {
+        return _stream.str();
+    }
+
+private:
+    int _level = 0;
+    std::stringstream _stream;
+
+};
+/******************************************************************************/
 
 template<typename Iterator>
-struct SLATT_grammar : qi::grammar<Iterator, std::unique_ptr<ExprAST>(), ascii::space_type>{
-    SLATT_grammar() : SLATT_grammar::base_type(slatt){
-        using qi::lit;
-        using qi::lexeme;
-        using ascii::char_;
-        using ascii::string;
-        using namespace qi::labels;
-        using boost::spirit::qi::as_string;
-        using boost::spirit::double_;
-        using boost::spirit::qi::_1;
-        using boost::spirit::qi::_val;
-        using phx::at_c;
-        using phx::push_back;
-        
+struct SLATTGrammar
+    : public qi::grammar<Iterator, ASTNodePtr(), qi::space_type>
+{
 
-        // number = double_[_val = std::make_unique<NumberExprAST>(_1)];
-        variable = as_string[lexeme[+char_]][_val = ::make_unique_<VariableExprAST>()(_1)];
-        for_loop %= for_prototype >> body;
-        binary %= variable >> (lit('=') | '+' | '-' | '*' | '/') >> (variable);
-        body %= '{' >> *(variable | binary | for_loop | body) >> '}';
-        slatt = body[_val = ::move_<std::unique_ptr<ExprAST>>()(_1)];
+    SLATTGrammar() : SLATTGrammar::base_type(slatt, "slatt")
+    {
+        using boost::spirit::lexeme;
+        using boost::spirit::lit;
+        using boost::spirit::as_string;
+        using qi::on_error;
+        using qi::fail;
+        using phx::val;
+        using phx::construct;
+
+        quoted_string = qi::omit[qi::char_("'\"") [qi::_a = qi::_1]] >> qi::no_skip[*(qi::char_ - qi::char_(qi::_a))] >> lit(qi::_a);
+        // BOOST_SPIRIT_DEBUG_NODE(quoted_string);
+
+        constant = 
+            qi::double_[qi::_val = phx::new_<ConstantNode<double>>(qi::_1)] |
+            quoted_string[qi::_val = phx::new_<ConstantNode<std::string>>(qi::_1)];
+        // BOOST_SPIRIT_DEBUG_NODE(constant);
+
+        variable = as_string[lexeme[qi::alpha >> *(qi::alnum - qi::char_('!'))]][qi::_val = phx::new_<VariableNode>(qi::_1)];
+
+        slatt %= body;
+
+        assignment = (variable >> '=' > expr)
+            [qi::_val = phx::new_<AssignmentNode>(qi::_1, qi::_2)];
+
+        type %= qi::lit("int") | qi::lit("char");
+        binary_op_string = (
+            qi::string("as") | 
+            qi::string("is") | 
+            qi::string("+")  | 
+            qi::string("-")  | 
+            qi::string("*")  | 
+            qi::string("/"));
+
+        expr = (factor >> binary_op_string >> expr) [qi::_val = phx::new_<BinaryOpNode>(qi::_1, qi::_3, qi::_2) ] |
+            factor [qi::_val = qi::_1];
+            
+        factor %= 
+            command_result |
+            constant |
+            variable |
+            group;
+            
+        group %= '(' >> expr > ')';
+
+        body = ('{' >> *(assignment | while_loop | if_statement | command_no_result | expr) > '}')[ qi::_val = phx::new_<BodyNode>(qi::_1) ];
+        if_statement = (lit("if") > '(' > expr > ')' > body)[
+            qi::_val = phx::new_<IfNode>(qi::_1, qi::_2)
+        ];
+        while_loop = (lit("while") > '(' >> expr > ')' > body)[
+            qi::_val = phx::new_<WhileNode>(qi::_1, qi::_2)
+        ];
+
+        command_result =
+            qi::string("read!")[qi::_val = phx::new_<CommandNode>(qi::_1, val(nullptr))] |
+            (qi::string("not!") > expr)[qi::_val = phx::new_<CommandNode>(qi::_1, qi::_2)];
+
+        //BOOST_SPIRIT_DEBUG_NODE(command_result);
+        
+        command_no_result = 
+            (qi::string("write!") > expr)[qi::_val = phx::new_<CommandNode>(qi::_1, qi::_2)] |
+            (qi::string("run!")   > expr)[qi::_val = phx::new_<CommandNode>(qi::_1, qi::_2)] |
+             qi::string("wait!")[qi::_val = phx::new_<CommandNode>(qi::_1, val(nullptr))];
+
+        type.name("type");
+        quoted_string.name("quoted_string");
+        variable.name("variable");
+        body.name("body");
+        assignment.name("assignment");
+        slatt.name("SLATT");
+        group.name("group");
+        while_loop.name("for_loop");
+
+        on_error<fail>
+        (
+            slatt
+          , std::cout
+                << val("Error! Expecting ")
+                << qi::_4                               // what failed?
+                << val(" here: \"")
+                << construct<std::string>(qi::_3, qi::_2)   // iterators to error-pos, end
+                << val("\"")
+                << std::endl
+        );
     }
 
-    qi::rule<Iterator, std::unique_ptr<ExprAST>(), ascii::space_type> slatt;
-    // qi::rule<Iterator, std::unique_ptr<NumberExprAST>(), ascii::space_type> number;
-    qi::rule<Iterator, std::unique_ptr<ExprAST>(), ascii::space_type> variable;
-    qi::rule<Iterator, std::unique_ptr<ExprAST>(), ascii::space_type> binary;
-    qi::rule<Iterator, std::unique_ptr<ExprAST>(), ascii::space_type> for_prototype;
-    qi::rule<Iterator, std::unique_ptr<ExprAST>(), ascii::space_type> body;
-    qi::rule<Iterator, std::unique_ptr<ExprAST>(), ascii::space_type> for_loop;
-
+    qi::rule<Iterator, std::string(), qi::space_type, qi::locals<char>> quoted_string;
+    qi::rule<Iterator, std::string(), qi::space_type> binary_op_string, type, command_with_arg_name, command_no_arg_name;
+    qi::rule<Iterator, ASTNodePtr(), qi::space_type> 
+        slatt, 
+        variable,
+        body,
+        constant,
+        assignment, 
+        group, 
+        while_loop, 
+        expr, 
+        binary_op, 
+        product, 
+        factor, 
+        if_statement, 
+        command_result, command_no_result;
 };
 
+/******************************************************************************/
 
-// struct Node;
+int main()
+{
+    std::string code = 
+        "{                                        \n"
+        "    stopCommand = read!                  \n"
+        "    while (not! (stopCommand is \"q\")) {\n"
+        "        write! \"enter a command:\"      \n"
+        "        a = read! as int                 \n"
+        "        op = read!                       \n"
+        "        b = read! as int                 \n"
+        "        run! b + c                       \n"
+        "        stopCommand = read!              \n"
+        "    }                                    \n"
+        "    wait!                                \n"
+        "}"
+        ;
+    // code = "a = 10 + 1";
+    std::cout << "code: " << std::endl << code << std::endl;
+    
+    using qi::space;
+    std::string::const_iterator iter = code.begin();
+    std::string::const_iterator end = code.end();
 
+    SLATTGrammar<std::string::const_iterator> grammar;
+    ASTNodePtr ast;
+    bool r = phrase_parse(iter, end, grammar, space, ast);
 
-// using expr_node = boost::variant<boost::recursive_wrapper<Node<T>>, std::string>;
-
-// struct Node {
-// public:
-//     vector<expr_node*> children;
-
-//     virtual T operate() = 0;
-// };
-
-
-// template <typename Iterator>
-
-// template<class T>
-// struct NodeVariable : public Node<T>{
-//     public:
-//     T data;
-
-//     NodeVariable(const T& value){
-//         data = value;
-//     }
-
-//     virtual T operate() override{
-//             return data;
-//     }
-// };
-
-// class NodePlus : public Node<std::string>{
-//     public:
-
-//         NodePlus(Node<std::string>* left_operand, Node<std::string>* right_operand){
-//             children.push_back(left_operand);
-//             children.push_back(right_operand);
-//         }
-
-//         virtual std::string operate() override{
-//             return "(" +  children[0]->operate() + "+" + children[1]->operate() + ")";
-//         } 
-// };
-
-// class NodeMinus : public Node<std::string>{
-//     public:
-//         NodeMinus(Node<std::string>* left_operand, Node<std::string>* right_operand){
-//             children.push_back(left_operand);
-//             children.push_back(right_operand);
-//         }
-
-//         virtual std::string operate() override{
-//             return "(" +  children[0]->operate() + "-" + children[1]->operate() + ")";
-//         } 
-// };
-
-// class NodeMultiply : public Node<std::string>{
-//     public:
-//         NodeMultiply(Node<std::string>* left_operand, Node<std::string>* right_operand){
-//             children.push_back(left_operand);
-//             children.push_back(right_operand);
-//         }
-
-//         virtual std::string operate() override{
-//             return "(" +  children[0]->operate() + "*" + children[1]->operate() + ")";
-//         } 
-// };
-
-// class NodeDivide : public Node<std::string>{
-//     public:
-//         NodeDivide(Node<std::string>* left_operand, Node<std::string>* right_operand){
-//             children.push_back(left_operand);
-//             children.push_back(right_operand);
-//         }
-//         virtual std::string operate() override{
-//             return "(" +  children[0]->operate() + "/" + children[1]->operate() + ")";
-//         } 
-// };
-
-
-
-// template<class T>
-// class Tree {
-// public:
-//     Node<T>* root;
-
-//     Tree(T val) {
-//         root = new Node(val);
-//     }
-
-//     void add_child(Node<T>* parent, Node<T>* child) {
-//         parent->children.push_back(child);
-//     }
-
-//     void print_tree(Node<T>* node, int level = 0) {
-//         if (node == nullptr) {
-//             return;
-//         }
-
-//         for (int i = 0; i < level; i++) {
-//             cout << "  ";
-//         }
-
-//         cout << node->data << endl;
-
-//         for (Node<T>* child : node->children) {
-//             print_tree(child, level + 1);
-//         }
-//     }
-
-
-//     // auto operate(Node<T>* operator_node){
-//     //     if (operator_node->data == "+") {
-//     //         return operator_node->children[0]->children->data + operator_node->children[1]->children->data;
-//     //     }
-//     //     if (operator_node->data == "-") {
-//     //         return operator_node->children[0]->children->data - operator_node->children[1]->children->data;
-//     //     }
-//     //     if (operator_node->data == "*") {
-//     //         return operator_node->children[0]->children->data * operator_node->children[1]->children->data;
-//     //     }
-//     //     if (operator_node->data == "/") {
-//     //         return operator_node->children[0]->children->data / operator_node->children[1]->children->data;
-//     //     }
-//     // }
-// };
-
-void print_variant(const std::variant<int, std::string>& v) {
-    if (std::holds_alternative<int>(v)) {
-        std::cout << "int: " << std::get<int>(v) << std::endl;
-    } else {
-        std::cout << "string: " << std::get<std::string>(v) << std::endl;
+    if (r && iter == end)
+    {
+        ASTVisitorImpl visitor;
+        ast->accept(visitor);
+        std::cout << "-------------------------\n";
+        std::cout << "Parsing succeeded\n";
+        std::cout << "-------------------------\n";
+        std::cout << "compiled: " << std::endl;
+        std::cout << visitor.getCompiledCode() << std::endl;
+        return 0;
     }
-}
-
-int main(int argc, char** argv){
-    // Tree<string> t("line1");
-
-    //1 + 5 - 6 * 8
-    // Node<std::string>* var_6 = new NodeVariable<std::string>("6");
-    // Node<std::string>* var_8 = new NodeVariable<std::string>("8");
-    // Node<std::string>* var_5 = new NodeVariable<std::string>("5");
-    // Node<std::string>* var_1 = new NodeVariable<std::string>("1");
-    // Node<std::string>* node_mult = new NodeMultiply(var_6, var_8);
-    // Node<std::string>* node_minus = new NodeMinus(var_5, node_mult);
-    // Node<std::string>* node_plus = new NodePlus(var_1, node_minus);
-    // std::cout << node_plus->operate() << std::endl;
-    // NodePlus<string>* operator_plus = new Node<string>("+");
-    // auto left_operand = new Node<string>("a");
-    // auto right_operand = new Node<string>("b");
-    // auto l_value = new Node<string>("5");
-    // auto r_value = new Node<string>("8");
-
-    // t.add_child(t.root, operator_plus);
-    // t.add_child(operator_plus, left_operand);
-    // t.add_child(operator_plus, right_operand);
-    // t.add_child(left_operand, l_value);
-    // t.add_child(right_operand, r_value);
-
-    // t.print_tree(t.root);
-
-    // std::cout << operator_plus->children[0]->data << std::endl;
-    std::cout << "/////////////////////////////////////////////////////////\n\n";
-    std::cout << "\t\tAn employee parser for Spirit...\n\n";
-    std::cout << "/////////////////////////////////////////////////////////\n\n";
-
-    std::cout
-        << "Give me an employee of the form :"
-        << "employee{age, \"surname\", \"forename\", salary } \n";
-    std::cout << "Type [q or Q] to quit\n\n";
-
-    using boost::spirit::ascii::space;
-    typedef std::string::const_iterator iterator_type;
-    typedef SLATT_grammar<iterator_type> SLATT_parser;
-
-    SLATT_parser g; // Our grammar
-    std::string str = "{ variable = 4 }";
-
-    std::string::const_iterator iter = str.begin();
-    std::string::const_iterator end = str.end();
-    [[maybe_unused]] bool r = phrase_parse(iter, end, &g, space);
-
-    // if (r && iter == end)
-    // {
-    //     std::cout << boost::fusion::tuple_open('[');
-    //     std::cout << boost::fusion::tuple_close(']'); 
-    //     std::cout << boost::fusion::tuple_delimiter(", ");
-
-    //     std::cout << "-------------------------\n";
-    //     std::cout << "Parsing succeeded\n";
-    //     std::cout << "got: " << boost::fusion::as_vector(emp) << std::endl;
-    //     std::cout << "\n-------------------------\n";
-    // }
-    // else
-    // {
-    //     std::cout << "-------------------------\n";
-    //     std::cout << "Parsing failed\n";
-    //     std::cout << "-------------------------\n";
-    // }
-
-    std::cout << "Bye... :-) \n\n";
-
+    else
+    {
+        std::cout << "-------------------------\n";
+        std::cout << "Parsing failed\n";
+        std::cout << "-------------------------\n";
+        return 1;
+    }
     return 0;
 }
+
+/******************************************************************************/
