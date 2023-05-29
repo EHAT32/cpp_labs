@@ -213,7 +213,6 @@ class ASTVisitorImpl : public IASTVisitor
 {
 public:
     ASTVisitorImpl() {
-        // _stream << "from multiprocessing import Pool" << std::endl 
         _stream << "import threading" << std::endl << "import datetime" << std::endl
                 << std::endl << std::string(40, '#') << std::endl << std::endl
                 << "threads = []" << std::endl << std::endl;
