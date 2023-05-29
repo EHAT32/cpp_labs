@@ -1,4 +1,5 @@
 import threading
+import datetime
 
 ########################################
 
@@ -14,22 +15,27 @@ if __name__ == '__main__':
         if (op=='+'):
             threads.append(threading.Thread(target = print((a + b))))
             threads[-1].start()
+            print(f'thread {len(threads)} started at ', datetime.datetime.now().time())
 
         if (op=='*'):
             threads.append(threading.Thread(target = print((a * b))))
             threads[-1].start()
+            print(f'thread {len(threads)} started at ', datetime.datetime.now().time())
 
         if (op=='/'):
             threads.append(threading.Thread(target = print((a / b))))
             threads[-1].start()
+            print(f'thread {len(threads)} started at ', datetime.datetime.now().time())
 
         if (op=='-'):
             threads.append(threading.Thread(target = print((a - b))))
             threads[-1].start()
+            print(f'thread {len(threads)} started at ', datetime.datetime.now().time())
 
         stopCommand=input()
 
-    for thread in threads:
-        thread.join()
+    for i in range(len(threads)):
+        threads[i].join()
+        print(f'thread {i + 1} finished at', datetime.datetime.now().time())
 
 

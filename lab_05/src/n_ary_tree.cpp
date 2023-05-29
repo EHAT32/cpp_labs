@@ -24,23 +24,6 @@ namespace fs = boost::filesystem;
 
 /******************************************************************************/
 
-// Utility to run a parser, check for errors, and capture the results.
-template <typename Parser, typename Skipper, typename ... Args>
-void PhraseParse(
-    const std::string& input, const Parser& p, const Skipper& s,
-    Args&& ... args)
-{
-    std::string::const_iterator begin = input.begin(), end = input.end();
-    boost::spirit::qi::phrase_parse(
-        begin, end, p, s, std::forward<Args>(args) ...);
-    if (begin != end) {
-        std::cout << "Unparseable: "
-                  << std::quoted(std::string(begin, end)) << std::endl;
-    }
-}
-
-/******************************************************************************/
-
 class BinaryOpNode;
 template<typename T> class ConstantNode;
 class VariableNode;
@@ -231,7 +214,7 @@ class ASTVisitorImpl : public IASTVisitor
 public:
     ASTVisitorImpl() {
         // _stream << "from multiprocessing import Pool" << std::endl 
-        _stream << "import threading" << std::endl 
+        _stream << "import threading" << std::endl << "import datetime" << std::endl
                 << std::endl << std::string(40, '#') << std::endl << std::endl
                 << "threads = []" << std::endl << std::endl;
         _stream << "if __name__ == '__main__':" << std::endl;
@@ -317,7 +300,8 @@ public:
             _stream << "threads.append(threading.Thread(target = print(";
             ref.expr()->accept(*this);
             _stream << ")))";
-            _stream << std::endl << std::string((_level) * 4, ' ') << "threads[-1].start()";
+            _stream << std::endl << std::string((_level) * 4, ' ') << "threads[-1].start()" << std::endl << std::string((_level) * 4, ' ')
+            << "print(f'thread {len(threads)} started at ', datetime.datetime.now().time())";
         }
         if (ref.command() == "wait!") {
             // _stream << "wait_all_threads()";
@@ -325,9 +309,11 @@ public:
             // _stream << std::string((_level + 1) * 4, ' ');
             // _stream << "thread.start()" << std::endl;
             
-            _stream << "for thread in threads:" << std::endl;
+            // _stream << "for thread in threads:" << std::endl;
+            _stream << "for i in range(len(threads)):" << std::endl;
             _stream << std::string((_level + 1) * 4, ' ');
-            _stream << "thread.join()" << std::endl;
+            _stream << "threads[i].join()" << std::endl
+            << std::string((_level + 1) * 4, ' ') << "print(f'thread {i + 1} finished at', datetime.datetime.now().time())" << std::endl;
         }
         if (ref.command() == "not!") {
             _stream << "not";
