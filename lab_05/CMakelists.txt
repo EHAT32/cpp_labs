@@ -1,0 +1,22 @@
+cmake_minimum_required(VERSION 3.0.0)
+
+
+project(lab_05)
+set(CMAKE_CXX_STANDARD 17)
+
+set(SOURCE_FILES 
+    src/ast.cpp
+    src/n_ary_tree.cpp
+    src/lex_analyser.cpp
+)
+add_executable(ast src/ast.cpp)
+add_executable(tree src/n_ary_tree.cpp)
+add_executable(lex_analyser src/lex_analyser.cpp)
+target_include_directories(ast PRIVATE include)
+target_include_directories(tree PRIVATE include)
+target_include_directories(lex_analyser PRIVATE include)
+find_package(Boost REQUIRED filesystem)
+target_include_directories(ast PRIVATE ${Boost_INCLUDE_DIRS})
+target_link_libraries(ast PRIVATE ${Boost_LIBRARIES})
+target_include_directories(tree PRIVATE ${Boost_INCLUDE_DIRS})
+target_link_libraries(tree PRIVATE ${Boost_LIBRARIES})

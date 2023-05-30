@@ -1,0 +1,23 @@
+{                                        
+    stopCommand = read!                  
+    while (not! (stopCommand is "q")) {
+        write! "enter a command:"      
+        a = read! as int                 
+        op = read!                       
+        b = read! as int                 
+        if (op is "+") {               
+            run! a + b                   
+        }                                
+        if (op is "*") {               
+            run! a * b                   
+        }                                
+        if (op is "/") {               
+            run! a / b                   
+        }                                
+        if (op is "-") {               
+            run! a - b                   
+        }                                
+        stopCommand = read!              
+    }                                    
+    wait!                                
+}
