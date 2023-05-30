@@ -135,6 +135,11 @@ public:
 
     void accept(IASTVisitor& v) override { v.visit(*this); }
 
+    ~AssignmentNode() {
+        delete _var;
+        delete _value;
+    }
+
 private:
     ASTNodePtr _var;
     ASTNodePtr _value;
@@ -150,6 +155,13 @@ public:
     }
 
     void accept(IASTVisitor& v) override { v.visit(*this); }
+
+    ~BodyNode() {
+        for (auto i : _expressions) {
+            delete i;
+        }
+        _expressions.clear();
+    }
 
 private:
     std::vector<ASTNodePtr> _expressions;
@@ -168,6 +180,11 @@ public:
     }
 
     void accept(IASTVisitor& v) override { v.visit(*this); }
+
+    ~WhileNode() {
+        delete _expr;
+        delete _body;
+    }
 
 private:
     ASTNodePtr _expr;
@@ -188,6 +205,11 @@ public:
 
     void accept(IASTVisitor& v) override { v.visit(*this); }
 
+    ~IfNode() {
+        delete _expr;
+        delete _body;
+    }
+
 private:
     ASTNodePtr _expr;
     ASTNodePtr _body;
@@ -202,6 +224,12 @@ public:
 
     std::string command() const { return _command; }
     ASTNodePtr expr() const { return _expr; }
+
+    ~CommandNode() {
+        delete _expr;
+        _command.clear();
+        _command.shrink_to_fit();
+    }
 
 private:
     std::string _command;
