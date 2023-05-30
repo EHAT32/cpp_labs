@@ -3,7 +3,16 @@ cmake_minimum_required(VERSION 3.0.0)
 project(lab_04)
 
 set(SOURCE_FILES 
-    src/seq_thr_proc.cpp
+    src/seq.cpp
+    src/thr.cpp
+    src/prcs.cpp
+    src/threads_new.cpp
 )
-add_executable(seq_thr_proc src/seq_thr_proc.cpp)
-target_include_directories(seq_thr_proc PRIVATE include)
+add_executable(seq src/seq.cpp)
+add_executable(thr src/thr.cpp)
+add_executable(prcs src/prcs.cpp)
+add_executable(threads_new src/threads_new.cpp)
+target_include_directories(seq PRIVATE include)
+target_include_directories(thr PRIVATE include)
+target_include_directories(prcs PRIVATE include)
+target_include_directories(threads_new PRIVATE include)
